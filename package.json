@@ -1,0 +1,16 @@
+{
+  "name": "gil.authoring",
+  "displayName": "Authoring Helper",
+  "version": "0.0.1",
+  "unity": "2022.3",
+  "unityRelease": "9f1",
+  "description": "Generic inspector drawers and entities component baker",
+  "dependencies": {
+ 
+  },
+  "keywords": [
+    "inspector",
+    "unity",
+    "baker"
+  ]
+}
