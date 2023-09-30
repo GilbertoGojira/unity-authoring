@@ -2,15 +2,24 @@
     "name": "Gil.Authoring",
     "rootNamespace": "",
     "references": [
-        "GUID:734d92eba21c94caba915361bd5ac177",
-        "GUID:e0cd26848372d4e5c891c569017e11f1",
-        "GUID:8819f35a0fc84499b990e90a4ca1911f"
+        "Unity.Entities",
+        "Unity.Collections",
+        "Unity.Entities.Hybrid",
+        "Unity.Properties"
     ],
-    "includePlatforms": [],
+    "includePlatforms": [
+        "Editor"
+    ],
     "excludePlatforms": [],
-    "allowUnsafeCode": false,
-    "overrideReferences": false,
-    "precompiledReferences": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Mono.Cecil.dll",
+        "Mono.Cecil.Rocks.dll",
+        "Mono.Cecil.Pdb.dll",
+        "Unity.IL2CPP",
+        "Unity.IL2CPP.Common"
+    ],
     "autoReferenced": true,
     "defineConstraints": [],
     "versionDefines": [],

@@ -34,15 +34,15 @@ namespace Gil.Authoring.Editor {
     protected Dictionary<Type, Func<SerializedProperty, string, VisualElement>> OverrideTypes = new();
 
     public GenericDrawer() {
-      OverrideTypes.Add(typeof(Entity), (property, n) => {
-        var fullName = $"{property.name}/{n}";
+      OverrideTypes.Add(typeof(Entity), (property, childPropertyName) => {
+        var path = $"{property.propertyPath}.{childPropertyName}";
         var target = property.serializedObject.targetObject as IGenericComponentAuthoring;
-        var Field = new ObjectField(n.ToPrettyString()) {
+        var Field = new ObjectField(childPropertyName.ToPrettyString()) {
           objectType = typeof(GameObject),
-          value = target.TryGetObjValue(fullName, out var @object) ? @object : null
+          value = target.TryGetObjValue(path, out var @object) ? @object : null
         };
         Field.RegisterValueChangedCallback(evt => {
-          target.SetObjValue(fullName, evt.newValue);
+          target.SetObjValue(path, evt.newValue);
           property.serializedObject.ApplyModifiedProperties();
           EditorUtility.SetDirty(property.serializedObject.targetObject);
         });
@@ -58,10 +58,11 @@ namespace Gil.Authoring.Editor {
       var popup = new UnityEngine.UIElements.PopupWindow {
         text = string.IsNullOrEmpty(Label) ? property.displayName : Label
       };
-      foreach (var (propertyName, m) in Utility.GetSerializableMembers<T>()) {
-        if (!OverrideElements.TryGetValue(propertyName, out VisualElement newElement))
-          newElement = (OverrideTypes.TryGetValue(Utility.GetMemberType(m), out var func) ? func : null)?.Invoke(property, propertyName) ??
-            new PropertyField(property.FindPropertyRelative(propertyName));
+      
+      foreach (var (childPropertyName, m) in Utility.GetSerializableMembers<T>()) {
+        if (!OverrideElements.TryGetValue(childPropertyName, out VisualElement newElement))
+          newElement = (OverrideTypes.TryGetValue(Utility.GetMemberType(m), out var func) ? func : null)?.Invoke(property, $"{childPropertyName}") ??
+            new PropertyField(property.FindPropertyRelative(childPropertyName));
         popup.Add(newElement);
       }
       container.Add(popup);
@@ -71,7 +72,7 @@ namespace Gil.Authoring.Editor {
     }
   }
 
-  abstract class GenericInspectorEditor<T> : UnityEditor.Editor {
+  public abstract class GenericInspectorEditor<T> : UnityEditor.Editor {
 
     public override VisualElement CreateInspectorGUI() {
       // Create a new VisualElement to be the root the property UI
@@ -82,12 +83,16 @@ namespace Gil.Authoring.Editor {
       foreach (var (propertyName, m) in Utility.GetSerializableMembers<T>()) {
         var property = serializedObject.FindProperty(propertyName);
         if (property != null) {
-          // Create an instance of a generic component drawer for the given type
-          var genericType = typeof(GenericDrawer<>).MakeGenericType(Utility.GetMemberType(m));
-          var instance = Activator.CreateInstance(genericType) as PropertyDrawer;
-          // Creates the elements for the type
-          var newElement = instance.CreatePropertyGUI(property);
-          popup.Add(newElement);
+          if (Utility.IsAssignableFrom(Utility.GetMemberType(m), typeof(IEnumerable<>)))
+            popup.Add(new PropertyField(property));
+          else {
+            // Create an instance of a generic component drawer for the given type
+            var genericType = typeof(GenericDrawer<>).MakeGenericType(Utility.GetMemberType(m));
+            var instance = Activator.CreateInstance(genericType) as PropertyDrawer;
+            // Creates the elements for the type
+            var newElement = instance.CreatePropertyGUI(property);
+            popup.Add(newElement);
+          }
         }
       }
       container.Add(popup);

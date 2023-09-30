@@ -23,6 +23,10 @@ namespace Gil.Authoring {
       return Regex.Replace(propertyName, @"(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", " ");
     }
 
+    public static bool IsAssignableFrom(Type sourceType, Type testType) =>
+      sourceType.IsAssignableFrom(testType) ||
+      sourceType.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == testType);
+
     public static Type GetMemberType(MemberInfo m) {
       if (m is PropertyInfo p)
         return p.PropertyType;
@@ -30,6 +34,12 @@ namespace Gil.Authoring {
         return f.FieldType;
       return default;
     }
+
+    public static Type GetGenericMemberTypeArgument(MemberInfo m, int index = 0) =>
+       GetGenericTypeArgument(GetMemberType(m), index);
+
+    public static Type GetGenericTypeArgument(Type type, int index = 0) =>
+      type.GetElementType() ?? type.GenericTypeArguments.ElementAtOrDefault(index) ?? type;
 
     public static object GetMemberValue(MemberInfo m, object instance) {
       var result = default(object);
@@ -40,7 +50,7 @@ namespace Gil.Authoring {
       return Convert.ChangeType(result, GetMemberType(m));
     }
 
-    public static object SetMemberValue(MemberInfo m, object instance, object value) {
+    public static object SetMemberValue(MemberInfo m, object instance,  object value) {
       if (m is PropertyInfo p)
         p.SetValue(instance, value);
       else if (m is FieldInfo f)
