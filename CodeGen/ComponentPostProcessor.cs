@@ -48,7 +48,7 @@ namespace Gil.Authoring.CodeGen {
 
       // We must request the scripts to be compiled the first time the editor is loaded
       if (!SessionState.GetBool(EditorInitKey, false)) {
-        CompilationPipeline.RequestScriptCompilation(RequestScriptCompilationOptions.CleanBuildCache);
+        CompilationPipeline.RequestScriptCompilation();
         SessionState.SetBool(EditorInitKey, true);
         Debug.Log("Initialized compilation pipeline");
       }
@@ -186,7 +186,7 @@ namespace Gil.Authoring.CodeGen {
       foreach (var t in unusedTypes) {
         var genericInstance = new GenericInstanceType(baseTypeRef);
         genericInstance.GenericArguments.Add(t);
-        var newType = CecilUtility.CreateTypeWithDefaultConstructor(t.Namespace, newTypeName, genericInstance);
+        var newType = CecilUtility.CreateTypeWithDefaultConstructor(string.Empty, $"{t.Name}{newTypeName}", genericInstance);
         injectedTypes.Add(newType);
         assemblyTypes.TypeMap[t.GetUniqueName()].NestedTypes
           .Add(newType);

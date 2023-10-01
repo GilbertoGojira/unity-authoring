@@ -1,5 +1,6 @@
 using Mono.Cecil;
 using Mono.Cecil.Cil;
+using Mono.Cecil.Rocks;
 using System;
 using System.Linq;
 using Unity.Assertions;
@@ -15,8 +16,8 @@ namespace Gil.Authoring.CodeGen {
         TypeAttributes.Class | TypeAttributes.Public,
         baseType);
 
-      // Try to get the base type default constructor, otherwise use object default constructor
-      var defaultBaseCtor = GetType(baseType).GetConstructor(Type.EmptyTypes) ?? typeof(object).GetConstructor(Type.EmptyTypes);
+      var baseCtor = baseType.Module.ImportReference(baseType.Resolve().GetConstructors().First());
+      baseCtor.DeclaringType = baseType;
 
       // Define the default constructor method (ctor) within the class
       var ctor = new MethodDefinition(
@@ -32,7 +33,7 @@ namespace Gil.Authoring.CodeGen {
       // Here, we call the constructor of the base class (Object) using IL code
       ctor.Body = new MethodBody(ctor);
       ctor.Body.GetILProcessor().Emit(OpCodes.Ldarg_0);
-      ctor.Body.GetILProcessor().Emit(OpCodes.Call, baseType.Module.ImportReference(defaultBaseCtor));
+      ctor.Body.GetILProcessor().Emit(OpCodes.Call, baseCtor);
       ctor.Body.GetILProcessor().Emit(OpCodes.Ret);
 
       // Add the constructor to the class
