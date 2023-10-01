@@ -1,9 +1,9 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Gil.Authoring.Components;
 using Gil.Authoring.Editor;
 using Mono.Cecil;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using Unity.Entities;
 using UnityEditor;
 using UnityEditor.Compilation;
@@ -48,9 +48,9 @@ namespace Gil.Authoring.CodeGen {
 
       // We must request the scripts to be compiled the first time the editor is loaded
       if (!SessionState.GetBool(EditorInitKey, false)) {
-        CompilationPipeline.RequestScriptCompilation();
+        CompilationPipeline.RequestScriptCompilation(RequestScriptCompilationOptions.CleanBuildCache);
         SessionState.SetBool(EditorInitKey, true);
-        Debug.Log("Initiazided compilation pipeline");
+        Debug.Log("Initialized compilation pipeline");
       }
     }
 
@@ -92,6 +92,7 @@ namespace Gil.Authoring.CodeGen {
         //["Authoring Types"] = GetTypesWithAttribute(assemblyTypes, typeof(GenerateAuthoringAttribute))
         //                      .Select(t => CreateAuthoringComponent(t, assemblyTypes.GetType("Procedural.PlaceholderComponent"))).ToList(),
         ["Editors"] = InjectInpectorEditors(assemblyTypes),
+        ["Drawer"] = InjectDrawers(assemblyTypes),
         ["Bakers"] = InjectComponentBakers(assemblyTypes)
       };
 
@@ -129,6 +130,17 @@ namespace Gil.Authoring.CodeGen {
       return injectedEditors;
     }
 
+    static IEnumerable<TypeDefinition> InjectDrawers(AssemblyTypes assemblyTypes) {
+      var injectedTypes = InjectTypes(assemblyTypes, "CustomDrawer", typeof(IBufferElementData), typeof(GenericDrawer<>));
+      var attributeType = assemblyTypes.Assembly.MainModule.ImportReference(typeof(CustomPropertyDrawer));
+      foreach (var type in injectedTypes) {
+        var inspectedType = (type.BaseType as GenericInstanceType).GenericArguments.First();
+        var attr = CecilUtility.CreateCustomAttribute(attributeType, inspectedType);
+        type.CustomAttributes.Add(attr);
+      }
+      return injectedTypes;
+    }
+
     /// <summary>
     /// Inject Bakers for all GenericComponentAuthoring
     /// </summary>
@@ -153,12 +165,12 @@ namespace Gil.Authoring.CodeGen {
 
       // 1. Find All types that derive from searchBaseType
 
-      var foundTypes = assemblyTypes.TypeMap.Values.Where(t => t.IsDerivedFrom(searchBaseType));
+      var foundTypes = assemblyTypes.TypeMap.Values.Where(t => searchBaseType.IsAssignableFrom(t));
 
       if (!foundTypes.Any())
         return Enumerable.Empty<TypeDefinition>();
 
-      // 2. From those found types get all that are used nad not used as generic parameter of the baseType
+      // 2. From those found types get all that are used and not used as generic parameter of the baseType
 
       var usedTypes = assemblyTypes.BaseTypeRefs.Where(t => t.IsGenericInstance)
         .Select(t => t as GenericInstanceType)

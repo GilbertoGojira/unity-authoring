@@ -31,8 +31,14 @@ namespace Gil.Authoring.CodeGen {
     public static bool IsDerivedFrom(this TypeReference typeRef, TypeReference type) =>
        typeRef?.GetBaseTypes().Any(t => t.EqualsToType(type)) ?? false;
 
+    public static bool IsAssignableFrom(this TypeReference sourceType, Type targetType) =>
+      CecilUtility.GetType(sourceType.Resolve()).IsAssignableFrom(targetType);
+
+    public static bool IsAssignableFrom(this Type sourceType, TypeReference targetType) =>
+      sourceType.IsAssignableFrom(CecilUtility.GetType(targetType.Resolve()));  
+
     public static bool IsAssignableFrom(this TypeReference sourceType, TypeReference targetType) =>
-      CecilUtility.GetType(sourceType.Resolve()).IsAssignableFrom(CecilUtility.GetType(targetType.Resolve()));
+      sourceType.IsAssignableFrom(CecilUtility.GetType(targetType.Resolve()));
 
     public static TypeDefinition Duplicate(this TypeDefinition typeDef) {
       // Create a new TypeDefinition with the same name, attributes, and base type

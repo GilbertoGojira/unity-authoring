@@ -1,7 +1,7 @@
-using System;
-using System.Linq;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
+using System;
+using System.Linq;
 using Unity.Assertions;
 
 namespace Gil.Authoring.CodeGen {
@@ -14,6 +14,9 @@ namespace Gil.Authoring.CodeGen {
         name,
         TypeAttributes.Class | TypeAttributes.Public,
         baseType);
+
+      // Try to get the base type default constructor, otherwise use object default constructor
+      var defaultBaseCtor = GetType(baseType).GetConstructor(Type.EmptyTypes) ?? typeof(object).GetConstructor(Type.EmptyTypes);
 
       // Define the default constructor method (ctor) within the class
       var ctor = new MethodDefinition(
@@ -29,7 +32,7 @@ namespace Gil.Authoring.CodeGen {
       // Here, we call the constructor of the base class (Object) using IL code
       ctor.Body = new MethodBody(ctor);
       ctor.Body.GetILProcessor().Emit(OpCodes.Ldarg_0);
-      ctor.Body.GetILProcessor().Emit(OpCodes.Call, baseType.Module.ImportReference(typeof(object).GetConstructor(Type.EmptyTypes)));
+      ctor.Body.GetILProcessor().Emit(OpCodes.Call, baseType.Module.ImportReference(defaultBaseCtor));
       ctor.Body.GetILProcessor().Emit(OpCodes.Ret);
 
       // Add the constructor to the class
@@ -66,7 +69,7 @@ namespace Gil.Authoring.CodeGen {
 
       var ctor = module.ImportReference(constructor);
       var attr = new CustomAttribute(ctor);
-      foreach(var p in parameters) {
+      foreach (var p in parameters) {
         attr.ConstructorArguments.Add(
           new CustomAttributeArgument(
             p.GetElementType(),
@@ -75,8 +78,16 @@ namespace Gil.Authoring.CodeGen {
       return attr;
     }
 
+    public static string GetQualifiedName(TypeReference type) {
+      if (type is GenericInstanceType g) {
+        var args = g.GenericArguments.Select(GetType).ToArray();
+        return $"{g.ElementType.FullName}[[{string.Join("],[", args.Select(t => t.AssemblyQualifiedName))}]]";
+      }
+      return $"{type.FullName}, {type.Module.Assembly.FullName}";
+    }
+
     public static Type GetType(TypeReference type) =>
-       Type.GetType(type.FullName) ?? Type.GetType(type.Resolve().FullName + ", " + type.Module.Assembly.FullName);
+      Type.GetType(GetQualifiedName(type)) ?? GetType(type.Resolve());
 
     public static Type GetType(TypeDefinition type) =>
       Type.GetType(type.FullName + ", " + type.Module.Assembly.FullName);
