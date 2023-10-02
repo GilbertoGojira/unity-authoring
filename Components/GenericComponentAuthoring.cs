@@ -38,7 +38,7 @@ namespace Gil.Authoring.Components {
     }
   }
 
-  public abstract class GenericBaker<T> : Baker<T> where T : GenericComponentAuthoring {
+  public abstract class GenericBaker<T> : Baker<T> where T : Component, IGenericComponentAuthoring {
     /// <summary>
     /// Type map with interfaces and its respective handling method
     /// </summary>

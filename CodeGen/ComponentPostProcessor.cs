@@ -32,6 +32,9 @@ namespace Gil.Authoring.CodeGen {
       public TypeDefinition GetType(TypeReference type) =>
         TypeMap.TryGetValue(type.GetUniqueName(), out var typeDef) ? typeDef : default;
 
+      public TypeDefinition GetType(string hint) =>
+        Types.FirstOrDefault(t => t.FullName.StartsWith(hint));
+
       public readonly AssemblyDefinition Assembly;
       public readonly IEnumerable<TypeDefinition> Types { get => TypeMap.Values; }
       public readonly IEnumerable<string> TypeNames;
@@ -93,10 +96,8 @@ namespace Gil.Authoring.CodeGen {
       var assemblyTypes = new AssemblyTypes(targetAssembly);
 
       var typesToInject = new Dictionary<string, IEnumerable<TypeDefinition>>() {
-        //["Authoring Types"] = GetTypesWithAttribute(assemblyTypes, typeof(GenerateAuthoringAttribute))
-        //                      .Select(t => CreateAuthoringComponent(t, assemblyTypes.GetType("Procedural.PlaceholderComponent"))).ToList(),
         ["Drawer"] = InjectDrawers(assemblyTypes),
-        //["Bakers"] = InjectComponentBakers(assemblyTypes)
+        ["Bakers"] = InjectComponentBakers(assemblyTypes)
       };
 
       var postProcessLog = typesToInject.Where(kvp => kvp.Value.Any())
