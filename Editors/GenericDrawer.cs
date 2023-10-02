@@ -39,7 +39,7 @@ namespace Gil.Authoring.Editor {
         var target = property.serializedObject.targetObject as IGenericComponentAuthoring;
         var Field = new ObjectField(childPropertyName.ToPrettyString()) {
           objectType = typeof(GameObject),
-          value = target.TryGetObjValue(path, out var @object) ? @object : null
+          value = target?.TryGetObjValue(path, out var @object) ?? false ? @object : null
         };
         Field.RegisterValueChangedCallback(evt => {
           target.SetObjValue(path, evt.newValue);

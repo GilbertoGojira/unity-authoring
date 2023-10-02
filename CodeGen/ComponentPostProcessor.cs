@@ -135,7 +135,7 @@ namespace Gil.Authoring.CodeGen {
     /// <param name="assemblyTypes"></param>
     /// <returns></returns>
     static IEnumerable<TypeDefinition> InjectComponentBakers(AssemblyTypes assemblyTypes) =>
-      InjectTypes(assemblyTypes, "Baker", typeof(GenericComponentAuthoring), typeof(GenericBaker<>), typeof(Baker<>));
+      InjectTypes(assemblyTypes, "Baker", typeof(IGenericComponentAuthoring), typeof(GenericBaker<>), typeof(Baker<>));
 
     /// <summary>
     /// Search for base types matching the searchBaseType and for each one of them add new nested type

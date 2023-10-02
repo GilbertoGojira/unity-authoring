@@ -14,7 +14,7 @@ namespace Gil.Authoring.Components {
     bool TryGetObjValue(string key, out UnityEngine.Object value);
   } 
 
-  public abstract class GenericComponentAuthoring : MonoBehaviour, IGenericComponentAuthoring {
+  public abstract class GenericComponentAuthoring<TCOMP> : MonoBehaviour, IGenericComponentAuthoring where TCOMP : struct {
     [Serializable]
     struct Tuple {
       public string Key;
