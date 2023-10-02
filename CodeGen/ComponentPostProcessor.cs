@@ -26,13 +26,17 @@ namespace Gil.Authoring.CodeGen {
         BaseTypeRefs = TypeMap.Values.SelectMany(t => t.GetBaseTypes()).ToList();
       }
 
-      public TypeDefinition GetType(string hint) =>
-        TypeMap.TryGetValue(TypeMap.Keys.FirstOrDefault(k => k.StartsWith(hint)) ?? "N/A", out var type) ? type : default;
+      public bool AddType(TypeDefinition type) =>
+        TypeMap.TryAdd(type.GetUniqueName(Assembly.MainModule), type);
+
+      public TypeDefinition GetType(TypeReference type) =>
+        TypeMap.TryGetValue(type.GetUniqueName(), out var typeDef) ? typeDef : default;
 
       public readonly AssemblyDefinition Assembly;
-      public readonly IDictionary<string, TypeDefinition> TypeMap;
+      public readonly IEnumerable<TypeDefinition> Types { get => TypeMap.Values; }
       public readonly IEnumerable<string> TypeNames;
       public readonly IEnumerable<TypeReference> BaseTypeRefs;
+      readonly IDictionary<string, TypeDefinition> TypeMap;
     }
 
     static readonly string EditorInitKey = $"{typeof(ComponentPostProcessor).FullName}.{nameof(EditorInitKey)}";
@@ -91,9 +95,8 @@ namespace Gil.Authoring.CodeGen {
       var typesToInject = new Dictionary<string, IEnumerable<TypeDefinition>>() {
         //["Authoring Types"] = GetTypesWithAttribute(assemblyTypes, typeof(GenerateAuthoringAttribute))
         //                      .Select(t => CreateAuthoringComponent(t, assemblyTypes.GetType("Procedural.PlaceholderComponent"))).ToList(),
-        ["Editors"] = InjectInpectorEditors(assemblyTypes),
         ["Drawer"] = InjectDrawers(assemblyTypes),
-        ["Bakers"] = InjectComponentBakers(assemblyTypes)
+        //["Bakers"] = InjectComponentBakers(assemblyTypes)
       };
 
       var postProcessLog = typesToInject.Where(kvp => kvp.Value.Any())
@@ -114,29 +117,13 @@ namespace Gil.Authoring.CodeGen {
         m_assemblies.Add(targetAssembly);
     }
 
-    /// <summary>
-    /// Inject Editors for all types deriving from GenericComponentAuthoring
-    /// </summary>
-    /// <param name="assemblyTypes"></param>
-    /// <returns></returns>
-    static IEnumerable<TypeDefinition> InjectInpectorEditors(AssemblyTypes assemblyTypes) {
-      var injectedEditors = InjectTypes(assemblyTypes, "AuthoringEditor", typeof(GenericComponentAuthoring), typeof(GenericInspectorEditor<>));
-      var customEditorAttributeType = assemblyTypes.Assembly.MainModule.ImportReference(typeof(CustomEditor));
-      foreach (var editor in injectedEditors) {
-        var inspectedType = (editor.BaseType as GenericInstanceType).GenericArguments.First();
-        var attr = CecilUtility.CreateCustomAttribute(customEditorAttributeType, inspectedType);
-        editor.CustomAttributes.Add(attr);
-      }
-      return injectedEditors;
-    }
-
     static IEnumerable<TypeDefinition> InjectDrawers(AssemblyTypes assemblyTypes) {
-      var injectedTypes = InjectTypes(assemblyTypes, "CustomDrawer", typeof(IBufferElementData), typeof(GenericDrawer<>));
-      var attributeType = assemblyTypes.Assembly.MainModule.ImportReference(typeof(CustomPropertyDrawer));
+      var injectedTypes = InjectTypes(assemblyTypes, "CustomDrawer", new[] { typeof(IComponentData), typeof(IBufferElementData) }, typeof(GenericDrawer<>));
+      var propertyDrawerAttributeType = assemblyTypes.Assembly.MainModule.ImportReference(typeof(CustomPropertyDrawer));
       foreach (var type in injectedTypes) {
         var inspectedType = (type.BaseType as GenericInstanceType).GenericArguments.First();
-        var attr = CecilUtility.CreateCustomAttribute(attributeType, inspectedType);
-        type.CustomAttributes.Add(attr);
+        type.CustomAttributes.Add(CecilUtility.CreateCustomAttribute(propertyDrawerAttributeType, inspectedType));
+        assemblyTypes.GetType(inspectedType).Attributes |= TypeAttributes.Serializable;
       }
       return injectedTypes;
     }
@@ -159,13 +146,26 @@ namespace Gil.Authoring.CodeGen {
     /// <param name="baseType"></param>
     /// <param name="otherTypes"></param>
     /// <returns></returns>
-    static IEnumerable<TypeDefinition> InjectTypes(AssemblyTypes assemblyTypes, string newTypeName, Type searchBaseType, Type baseType, params Type[] otherTypes) {
+    static IEnumerable<TypeDefinition> InjectTypes(AssemblyTypes assemblyTypes, string newTypeName, Type searchBaseType, Type baseType, params Type[] otherTypes) =>
+      InjectTypes(assemblyTypes, newTypeName, new[] { searchBaseType }, baseType, otherTypes);
+
+    /// <summary>
+    /// Search for base types matching the searchBaseType and for each one of them add new nested type
+    /// deriving from baseType<foundType> if no type yet derives from it
+    /// </summary>
+    /// <param name="assemblyTypes"></param>
+    /// <param name="newTypeName"></param>
+    /// <param name="searchBaseTypes"></param>
+    /// <param name="baseType"></param>
+    /// <param name="otherTypes"></param>
+    /// <returns></returns>
+    static IEnumerable<TypeDefinition> InjectTypes(AssemblyTypes assemblyTypes, string newTypeName, Type[] searchBaseTypes, Type baseType, params Type[] otherTypes) {
 
       var bakers = otherTypes.Append(baseType);
 
       // 1. Find All types that derive from searchBaseType
 
-      var foundTypes = assemblyTypes.TypeMap.Values.Where(t => searchBaseType.IsAssignableFrom(t));
+      var foundTypes = assemblyTypes.Types.Where(t => searchBaseTypes.Any(st => st.IsAssignableFrom(t)));
 
       if (!foundTypes.Any())
         return Enumerable.Empty<TypeDefinition>();
@@ -177,7 +177,7 @@ namespace Gil.Authoring.CodeGen {
         .Where(t => bakers.Any(b => t.ElementType.EqualsToType(b)) && t.GenericArguments.Count == 1)
         .Select(t => t.GenericArguments.First());
 
-      var unusedTypes = foundTypes.Except(usedTypes);
+      var unusedTypes = foundTypes.Except(usedTypes).ToList();
 
       // 3. Create a class extending from baseType and with generic parameter the unusedType (eg. `class newType : baseType<unusedType> { })
 
@@ -188,14 +188,15 @@ namespace Gil.Authoring.CodeGen {
         genericInstance.GenericArguments.Add(t);
         var newType = CecilUtility.CreateTypeWithDefaultConstructor(string.Empty, $"{t.Name}{newTypeName}", genericInstance);
         injectedTypes.Add(newType);
-        assemblyTypes.TypeMap[t.GetUniqueName()].NestedTypes
+        assemblyTypes.GetType(t).NestedTypes
           .Add(newType);
+        assemblyTypes.AddType(newType);
       }
       return injectedTypes;
     }
 
     static IEnumerable<TypeDefinition> GetTypesWithAttribute(AssemblyTypes assemblyTypes, Type attribute) =>
-      assemblyTypes.TypeMap.Values
+      assemblyTypes.Types
         .Where(t => t.CustomAttributes.Any(attr => attr.AttributeType.EqualsToType(attribute)));
   }
 }

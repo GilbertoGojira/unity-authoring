@@ -7,8 +7,8 @@ namespace Gil.Authoring.CodeGen {
 
   public static class CecilExtensions {
 
-    public static string GetUniqueName(this TypeDefinition typeDef) =>
-      $"{typeDef.FullName}/{typeDef.Module.Assembly.Name}";
+    public static string GetUniqueName(this TypeDefinition typeDef, ModuleDefinition futureModule = null) =>
+      $"{typeDef.FullName}/{(typeDef.Module ?? futureModule).Assembly.Name}";
 
     public static string GetUniqueName(this TypeReference typeRef) =>
       $"{typeRef.Resolve().FullName}/{typeRef.Module.Assembly.Name}";

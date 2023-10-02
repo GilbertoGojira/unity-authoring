@@ -72,6 +72,7 @@ namespace Gil.Authoring.Editor {
     }
   }
 
+  /*
   public abstract class GenericInspectorEditor<T> : UnityEditor.Editor {
 
     public override VisualElement CreateInspectorGUI() {
@@ -101,6 +102,6 @@ namespace Gil.Authoring.Editor {
 
       return container;
     }
-  }
+  }*/
 }
 #endif
