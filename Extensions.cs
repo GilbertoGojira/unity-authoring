@@ -1,3 +1,4 @@
+using Mono.Collections.Generic;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
@@ -29,6 +30,9 @@ namespace Gil.Authoring {
     public static IDictionary<string, MemberInfo> GetSerializableMembers<T>(this T _, bool declareOnly = false) =>
       Utility.GetSerializableMembers<T>(declareOnly);
 
-
+    public static void AddRange<T>(this Collection<T> coll, IEnumerable<T> values) {
+      foreach(var v in values)
+        coll.Add(v);
+    }
   }
 }

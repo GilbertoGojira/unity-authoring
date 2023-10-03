@@ -23,9 +23,11 @@ namespace Gil.Authoring {
       return Regex.Replace(propertyName, @"(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", " ");
     }
 
-    public static bool IsAssignableFrom(Type sourceType, Type testType) =>
-      sourceType.IsAssignableFrom(testType) ||
-      sourceType.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == testType);
+    public static bool IsAssignableFrom(Type sourceType, Type targetType) =>
+      sourceType.IsAssignableFrom(targetType) ||
+      sourceType.GetInterfaces().Any(i => 
+        i == targetType ||
+        i.IsGenericType && targetType.IsGenericType && i.GetGenericTypeDefinition() == targetType.GetGenericTypeDefinition());
 
     public static Type GetMemberType(MemberInfo m) {
       if (m is PropertyInfo p)

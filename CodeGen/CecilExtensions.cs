@@ -20,10 +20,10 @@ namespace Gil.Authoring.CodeGen {
       typeRef.GetUniqueName() == type.GetUniqueName();
 
     public static IEnumerable<TypeReference> GetBaseTypes(this TypeDefinition typeDef) =>
-      typeDef?.BaseType != null ? new[] { typeDef.BaseType }.Union(typeDef.BaseType.Resolve().GetBaseTypes()) : Enumerable.Empty<TypeReference>();
+      CecilUtility.GetBaseTypes(typeDef);
 
     public static IEnumerable<TypeReference> GetBaseTypes(this TypeReference typeRef) =>
-      GetBaseTypes(typeRef.Resolve());
+      CecilUtility.GetBaseTypes(typeRef);
 
     public static bool IsDerivedFrom(this TypeDefinition typeDef, Type type) =>
        typeDef?.GetBaseTypes().Any(t => t.EqualsToType(type)) ?? false;

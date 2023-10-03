@@ -71,37 +71,5 @@ namespace Gil.Authoring.Editor {
       return container;
     }
   }
-
-  /*
-  public abstract class GenericInspectorEditor<T> : UnityEditor.Editor {
-
-    public override VisualElement CreateInspectorGUI() {
-      // Create a new VisualElement to be the root the property UI
-      var container = new VisualElement();
-
-      // Create drawer UI using C#
-      var popup = new UnityEngine.UIElements.PopupWindow { };
-      foreach (var (propertyName, m) in Utility.GetSerializableMembers<T>()) {
-        var property = serializedObject.FindProperty(propertyName);
-        if (property != null) {
-          if (Utility.IsAssignableFrom(Utility.GetMemberType(m), typeof(IEnumerable<>)))
-            popup.Add(new PropertyField(property));
-          else {
-            // Create an instance of a generic component drawer for the given type
-            var genericType = typeof(GenericDrawer<>).MakeGenericType(Utility.GetMemberType(m));
-            var instance = Activator.CreateInstance(genericType) as PropertyDrawer;
-            // Creates the elements for the type
-            var newElement = instance.CreatePropertyGUI(property);
-            popup.Add(newElement);
-          }
-        }
-      }
-      container.Add(popup);
-
-      serializedObject.ApplyModifiedProperties();
-
-      return container;
-    }
-  }*/
 }
 #endif

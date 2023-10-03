@@ -2,6 +2,7 @@ using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Unity.Assertions;
 
@@ -86,6 +87,15 @@ namespace Gil.Authoring.CodeGen {
       }
       return $"{type.FullName}, {type.Module.Assembly.FullName}";
     }
+
+    public static IEnumerable<TypeReference> GetBaseTypes(TypeDefinition typeDef) =>
+      typeDef?.BaseType != null ? new[] { typeDef.BaseType }.Union(typeDef.BaseType.GetBaseTypes()) : Enumerable.Empty<TypeReference>();
+
+    public static IEnumerable<TypeReference> GetBaseTypes(TypeReference typeRef) =>
+      GetBaseTypes(typeRef.Resolve());
+
+    public static TypeReference FindBaseTypeInHierarchy(TypeDefinition pivotType, TypeDefinition baseType, TypeReference @default = default) =>
+      pivotType.GetBaseTypes().FirstOrDefault(t => t.Resolve().EqualsToType(baseType)) ?? @default;
 
     public static Type GetType(TypeReference type) =>
       Type.GetType(GetQualifiedName(type)) ?? GetType(type.Resolve());

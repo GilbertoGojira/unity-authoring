@@ -2,6 +2,7 @@ using Gil.Authoring.Components;
 using Gil.Authoring.Editor;
 using Mono.Cecil;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Unity.Entities;
@@ -96,6 +97,7 @@ namespace Gil.Authoring.CodeGen {
       var assemblyTypes = new AssemblyTypes(targetAssembly);
 
       var typesToInject = new Dictionary<string, IEnumerable<TypeDefinition>>() {
+        ["Authoring"] = InjectAuthoringMembers(assemblyTypes),
         ["Drawer"] = InjectDrawers(assemblyTypes),
         ["Bakers"] = InjectComponentBakers(assemblyTypes)
       };
@@ -135,7 +137,40 @@ namespace Gil.Authoring.CodeGen {
     /// <param name="assemblyTypes"></param>
     /// <returns></returns>
     static IEnumerable<TypeDefinition> InjectComponentBakers(AssemblyTypes assemblyTypes) =>
-      InjectTypes(assemblyTypes, "Baker", typeof(IGenericComponentAuthoring), typeof(GenericBaker<>), typeof(Baker<>));
+       InjectTypes(assemblyTypes, "Baker", typeof(IGenericComponentAuthoring), typeof(GenericBaker<>), typeof(Baker<>));
+
+    /// <summary>
+    /// Inject Authoring fields from type `GenericComponentAuthoring` generic arguments
+    /// </summary>
+    /// <param name="assemblyTypes"></param>
+    /// <returns></returns>
+    static IEnumerable<TypeDefinition> InjectAuthoringMembers(AssemblyTypes assemblyTypes) {
+      var genericComponentAuthoring = assemblyTypes.Assembly.MainModule.ImportReference(typeof(GenericComponentAuthoring<>)).Resolve();
+      var authoringComponents = assemblyTypes.Types
+        .Select(t => (Component: t, BaseGenericInstanceType: CecilUtility.FindBaseTypeInHierarchy(t, genericComponentAuthoring) as GenericInstanceType))
+        .Where(r => r.BaseGenericInstanceType != default);
+
+      // Local helper method to create a fields only in this context
+      static FieldDefinition CreateField(string name, TypeReference fieldType) {
+        var contraintType = BakerConstraints.PossibleInterfaces
+          .FirstOrDefault(i => Utility.IsAssignableFrom(CecilUtility.GetType(fieldType), Utility.GetGenericTypeArgument(i.Type))).Type;
+        var isArray = contraintType != null && Utility.IsAssignableFrom(contraintType, typeof(IEnumerable));
+        fieldType = isArray ? new ArrayType(fieldType) : fieldType;
+        return new FieldDefinition(name, FieldAttributes.Public, fieldType);
+      }
+
+      var fields = authoringComponents.SelectMany(a =>
+        a.BaseGenericInstanceType.GenericArguments
+          .GroupBy(k => k)
+          .SelectMany(group =>
+            group.Select((type, idx) =>
+            (a.Component, Field: CreateField($"{type.Name}Value{(group.Count() > 1 ? ++idx : string.Empty)}", group.Key)))));
+
+      foreach (var (component, field) in fields)
+        component.Fields.Add(field);
+
+      return authoringComponents.Select(a => a.Component);
+    }
 
     /// <summary>
     /// Search for base types matching the searchBaseType and for each one of them add new nested type
