@@ -164,7 +164,7 @@ namespace Gil.Authoring.CodeGen {
           .GroupBy(k => k)
           .SelectMany(group =>
             group.Select((type, idx) =>
-            (a.Component, Field: CreateField($"{type.Name}Value{(group.Count() > 1 ? ++idx : string.Empty)}", group.Key)))));
+            (a.Component, Field: CreateField($"Value{(group.Count() > 1 ? ++idx : string.Empty)}", group.Key)))));
 
       foreach (var (component, field) in fields)
         component.Fields.Add(field);
