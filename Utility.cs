@@ -25,9 +25,10 @@ namespace Gil.Authoring {
 
     public static bool IsAssignableFrom(Type sourceType, Type targetType) =>
       sourceType.IsAssignableFrom(targetType) ||
-      sourceType.GetInterfaces().Any(i => 
-        i == targetType ||
-        i.IsGenericType && targetType.IsGenericType && i.GetGenericTypeDefinition() == targetType.GetGenericTypeDefinition());
+        sourceType.GetInterfaces().Any(i => i == targetType ||
+            i.IsGenericType && targetType.IsGenericType && i.GetGenericTypeDefinition() == targetType.GetGenericTypeDefinition() &&
+            i.GenericTypeArguments.Count() == targetType.GenericTypeArguments.Count() &&
+            i.GenericTypeArguments.Select((t, idx) => IsAssignableFrom(t, targetType.GenericTypeArguments.ElementAtOrDefault(idx))).All(v => v));
 
     public static Type GetMemberType(MemberInfo m) {
       if (m is PropertyInfo p)
