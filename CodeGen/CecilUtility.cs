@@ -10,16 +10,30 @@ namespace Gil.Authoring.CodeGen {
 
   public static class CecilUtility {
 
-    public static TypeDefinition CreateTypeWithDefaultConstructor(string @namespace, string name, TypeReference baseType) {
+    public static IEnumerable<string> GetAssemblyPaths(IEnumerable<string> keywords, bool exclude = false) =>
+      AppDomain.CurrentDomain.GetAssemblies()
+        .Where(a => keywords.Any(ex => (a.FullName.IndexOf(ex, StringComparison.InvariantCultureIgnoreCase) >= 0) != exclude ||
+                                        a.ManifestModule.Name == ex != exclude))
+                                        .Select(a => a.Location);
+
+    public static TypeDefinition CreateTypeWithDefaultConstructor(string @namespace, string name, ModuleDefinition module, TypeReference baseType = default) {
       var newType = new TypeDefinition(
         @namespace,
         name,
         TypeAttributes.Class | TypeAttributes.Public,
-        baseType);
+        baseType ?? module.ImportReference(typeof(object)));
 
-      var baseCtor = baseType.Module.ImportReference(baseType.Resolve().GetConstructors().First());
-      baseCtor.DeclaringType = baseType;
+      var baseCtor = baseType?.Module.ImportReference(baseType.Resolve().GetConstructors().First());
+      if (baseCtor != null)
+        baseCtor.DeclaringType = baseType;
 
+      // Add the constructor to the class
+      newType.Methods.Add(CreateDefaultConstuctor(baseType.Module, baseCtor));
+
+      return newType;
+    }
+
+    public static MethodDefinition CreateDefaultConstuctor(ModuleDefinition module, MethodReference baseCtor = default) {
       // Define the default constructor method (ctor) within the class
       var ctor = new MethodDefinition(
           ".ctor",                                // Name of the constructor
@@ -27,20 +41,18 @@ namespace Gil.Authoring.CodeGen {
           MethodAttributes.HideBySig |            // HideBySig is required for constructors
           MethodAttributes.SpecialName |          // SpecialName is required for constructors
           MethodAttributes.RTSpecialName,         // RTSpecialName is required for constructors
-          baseType.Module.ImportReference(typeof(void))     // Return type (void for constructors)
+          module.ImportReference(typeof(void))     // Return type (void for constructors)
       );
 
       // Add the constructor's body (e.g., to call base constructor)
       // Here, we call the constructor of the base class (Object) using IL code
-      ctor.Body = new MethodBody(ctor);
-      ctor.Body.GetILProcessor().Emit(OpCodes.Ldarg_0);
-      ctor.Body.GetILProcessor().Emit(OpCodes.Call, baseCtor);
-      ctor.Body.GetILProcessor().Emit(OpCodes.Ret);
+      var ilProcessor = ctor.Body.GetILProcessor();
+      ilProcessor.Append(ilProcessor.Create(OpCodes.Ldarg_0));
+      ilProcessor.Append(ilProcessor.Create(OpCodes.Call,
+        baseCtor ?? module.ImportReference(typeof(object).GetConstructor(Type.EmptyTypes))));
+      ilProcessor.Append(ilProcessor.Create(OpCodes.Ret));
 
-      // Add the constructor to the class
-      newType.Methods.Add(ctor);
-
-      return newType;
+      return ctor;
     }
 
     /// <summary>
@@ -51,7 +63,11 @@ namespace Gil.Authoring.CodeGen {
     /// <returns></returns>
     public static bool ParametersMatch(MethodDefinition method, TypeReference[] parameters) =>
       method.Parameters.Count == parameters.Count()
-      && method.Parameters.Zip(parameters, (e1, e2) => e1.ParameterType.EqualsToType(typeof(Type)) || e2.IsAssignableFrom(e1.ParameterType))
+      && method.Parameters.Zip(parameters, (e1, e2) => {
+        // TODO: Comparing type for some reason ends up using two different assemblies
+        // We are just comparing the name 
+        return e1.ParameterType.FullName == typeof(Type).FullName || e1.ParameterType.IsAssignableFrom(e2);
+      })
         .All(v => v);
 
     /// <summary>
@@ -95,12 +111,37 @@ namespace Gil.Authoring.CodeGen {
       GetBaseTypes(typeRef.Resolve());
 
     public static TypeReference FindBaseTypeInHierarchy(TypeDefinition pivotType, TypeDefinition baseType, TypeReference @default = default) =>
-      pivotType.GetBaseTypes().FirstOrDefault(t => t.Resolve().EqualsToType(baseType)) ?? @default;
+      pivotType.GetBaseTypes().FirstOrDefault(t => t.Resolve()?.EqualsToType(baseType) ?? false) ?? @default;
 
     public static Type GetType(TypeReference type) =>
       Type.GetType(GetQualifiedName(type)) ?? GetType(type.Resolve());
 
     public static Type GetType(TypeDefinition type) =>
       Type.GetType(type.FullName + ", " + type.Module.Assembly.FullName);
+
+    public static Type GetType(System.Reflection.Assembly assembly, TypeReference type) =>
+      assembly.GetType(GetQualifiedName(type)) ?? assembly.GetType(GetQualifiedName(type.Resolve()));
+
+    public static bool IsAssignableFrom(TypeReference sourceType, TypeReference targetType) {
+      // Resolve the TypeReference to get a TypeDefinition
+      var targetDefinition = targetType.Resolve();
+      var sourceDefinition = sourceType.Resolve();
+
+      if (sourceDefinition == targetDefinition) {
+        return true;
+      }
+
+      var baseType = sourceDefinition.BaseType;
+      if (baseType != null && IsAssignableFrom(baseType, targetType))
+        return true;
+
+      return sourceDefinition.Interfaces.Select(i => i.InterfaceType).Any(i => i.EqualsToType(targetType) ||
+        i.Resolve() == targetDefinition &&
+        (i is GenericInstanceType gi) && (targetType is GenericInstanceType gt) &&
+        gi.HasGenericArguments && gt.HasGenericArguments &&
+        gi.GenericArguments.Count() == gt.GenericArguments.Count() &&
+        gi.GenericArguments.Select((t, idx) => IsAssignableFrom(t, gt.GenericArguments.ElementAt(idx))).All(v => v)
+      );
+    }
   }
 }

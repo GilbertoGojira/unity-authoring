@@ -1,12 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Mono.Cecil;
+using Mono.Cecil.Cil;
 
+[assembly: InternalsVisibleTo("Gil.Authoring.Tests")]
 namespace Gil.Authoring.CodeGen {
 
-  class AssemblyResolver : BaseAssemblyResolver {
+  internal class AssemblyResolver : BaseAssemblyResolver {
     Dictionary<string, AssemblyDefinition> m_usedAssemblyDefinitions;
     bool m_resolveAdditionalAssemblies;
 
@@ -15,7 +19,13 @@ namespace Gil.Authoring.CodeGen {
       private set;
     }
 
-    public AssemblyResolver(IEnumerable<string> assemblyPaths, bool resolveAdditionalAssemblies = false) {
+    public AssemblyResolver(bool resolveAdditionalAssemblies = false) =>
+      Initialize(Enumerable.Empty<string>(), resolveAdditionalAssemblies);
+
+    public AssemblyResolver(IEnumerable<string> assemblyPaths, bool resolveAdditionalAssemblies = false) =>
+      Initialize(assemblyPaths, resolveAdditionalAssemblies);
+
+    void Initialize(IEnumerable<string> assemblyPaths, bool resolveAdditionalAssemblies) {
       m_resolveAdditionalAssemblies = resolveAdditionalAssemblies;
       foreach (var path in assemblyPaths)
         AddSearchDirectory(path);
@@ -27,6 +37,25 @@ namespace Gil.Authoring.CodeGen {
           }))
           .ToDictionary(a => a.FullName, a => a);
       AssemblyDefinitions = m_usedAssemblyDefinitions.Values.ToArray();
+    }
+
+    public AssemblyDefinition AddAssembly(string assemblyName, byte[] assemblyData, byte[] symbolData = null, bool readWrite = false) {
+      if (m_usedAssemblyDefinitions.TryGetValue(assemblyName, out var assemblyDef))
+        return assemblyDef;
+
+      var peStream = new MemoryStream(assemblyData);
+
+      var assembly = AssemblyDefinition.ReadAssembly(peStream, new ReaderParameters {
+        ReadWrite = readWrite,
+        AssemblyResolver = this,
+        ReadingMode = ReadingMode.Immediate,
+        ReadSymbols = symbolData != null,
+        SymbolStream = symbolData != null ? new MemoryStream(symbolData) : default,
+        SymbolReaderProvider = symbolData != null ? new PortablePdbReaderProvider() : default,
+        ReflectionImporterProvider = new ReflectionImporterProvider()
+      });
+      AddSearchDirectory(Path.GetDirectoryName(assembly.MainModule.FileName));
+      return AddAssembly(assembly);
     }
 
     public AssemblyDefinition AddAssembly(Assembly assembly, bool readWrite = false) {
@@ -41,6 +70,10 @@ namespace Gil.Authoring.CodeGen {
         AssemblyResolver = this
       });
       AddSearchDirectory(path);
+      return AddAssembly(assembly);
+    }
+
+    public AssemblyDefinition AddAssembly(AssemblyDefinition assembly) {
       if (m_usedAssemblyDefinitions.TryGetValue(assembly.FullName, out var usedAssembly)) {
         usedAssembly.Dispose();
         m_usedAssemblyDefinitions.Remove(usedAssembly.FullName);
@@ -57,7 +90,7 @@ namespace Gil.Authoring.CodeGen {
       if (m_resolveAdditionalAssemblies) {
         var resolvedAssembly = AppDomain.CurrentDomain.GetAssemblies()
           .FirstOrDefault(a => a.FullName == name.FullName);
-        if (resolvedAssembly != null)
+        if (resolvedAssembly != null && !string.IsNullOrEmpty(resolvedAssembly.Location))
           return AddAssembly(resolvedAssembly.Location);
       }
       return null;

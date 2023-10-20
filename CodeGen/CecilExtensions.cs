@@ -10,11 +10,12 @@ namespace Gil.Authoring.CodeGen {
     public static string GetUniqueName(this TypeDefinition typeDef, ModuleDefinition futureModule = null) =>
       $"{typeDef.FullName}/{(typeDef.Module ?? futureModule).Assembly.Name}";
 
-    public static string GetUniqueName(this TypeReference typeRef) =>
-      $"{typeRef.Resolve().FullName}/{typeRef.Module.Assembly.Name}";
-
+    public static string GetUniqueName(this TypeReference typeRef) {
+      var typeDef = (typeRef as TypeDefinition) ?? typeRef.Resolve();
+      return $"{typeRef.FullName}/{typeDef.Module.Assembly.Name}";
+    }
     public static bool EqualsToType(this TypeReference typeRef, Type type) =>
-      CecilUtility.GetType(typeRef) == type;
+      typeRef.EqualsToType(typeRef.Module.ImportReference(type));
 
     public static bool EqualsToType(this TypeReference typeRef, TypeReference type) =>
       typeRef.GetUniqueName() == type.GetUniqueName();
@@ -31,18 +32,18 @@ namespace Gil.Authoring.CodeGen {
     public static bool IsDerivedFrom(this TypeReference typeRef, TypeReference type) =>
        typeRef?.GetBaseTypes().Any(t => t.EqualsToType(type)) ?? false;
 
-    public static bool IsAssignableFrom(this TypeReference sourceType, Type targetType) =>
-      CecilUtility.GetType(sourceType.Resolve()).IsAssignableFrom(targetType);
+    public static bool IsAssignableFrom(this TypeReference targetType, Type sourceType) =>
+      CecilUtility.IsAssignableFrom(targetType.Module.ImportReference(sourceType), targetType);
 
-    public static bool IsAssignableFrom(this Type sourceType, TypeReference targetType) =>
-      sourceType.IsAssignableFrom(CecilUtility.GetType(targetType.Resolve()));  
+    public static bool IsAssignableFrom(this Type targetType, TypeReference sourceType) =>
+      CecilUtility.IsAssignableFrom(sourceType, sourceType.Module.ImportReference(targetType));
 
-    public static bool IsAssignableFrom(this TypeReference sourceType, TypeReference targetType) =>
-      sourceType.IsAssignableFrom(CecilUtility.GetType(targetType.Resolve()));
+    public static bool IsAssignableFrom(this TypeReference targetType, TypeReference sourceType) =>
+      CecilUtility.IsAssignableFrom(sourceType, targetType);
 
     public static TypeDefinition Duplicate(this TypeDefinition typeDef) {
       // Create a new TypeDefinition with the same name, attributes, and base type
-      TypeDefinition duplicatedTypeDefinition = new TypeDefinition(
+      TypeDefinition duplicatedTypeDefinition = new(
           typeDef.Namespace,
           typeDef.Name,
           typeDef.Attributes,

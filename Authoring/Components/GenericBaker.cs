@@ -9,11 +9,11 @@ using UnityEngine;
 
 namespace Gil.Authoring.Components {
 
-  internal static class BakerConstraints {
+  public static class BakerConstraints {
     /// <summary>
     /// Type map with interfaces and its respective handling method
     /// </summary>
-    internal static readonly (Type Type, string MethodName)[] PossibleInterfaces = new[] {
+    public static readonly (Type Type, string MethodName)[] PossibleInterfaces = new[] {
         (typeof(IComponentData), "AddGenericComponent"),
         (typeof(IEnumerable<IBufferElementData>), "AddGenericBuffer")
     };

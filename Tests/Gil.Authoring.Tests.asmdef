@@ -1,0 +1,27 @@
+{
+    "name": "Gil.Authoring.Tests",
+    "rootNamespace": "",
+    "references": [
+        "UnityEditor.TestRunner",
+        "Gil.Authoring",
+        "Unity.Authoring.CodeGen",
+        "Unity.Entities",
+        "Unity.Collections"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Mono.Cecil.dll",
+        "Mono.Cecil.Pdb.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
